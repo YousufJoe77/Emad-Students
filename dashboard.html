@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Teacher Dashboard | Emad English</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f6fb;color:#172033;font-family:Inter,Arial,sans-serif}.top{background:#fff;border-bottom:1px solid #e5eaf3;padding:18px clamp(18px,5vw,50px);display:flex;align-items:center;justify-content:space-between;gap:16px}.logo{font-size:22px;font-weight:800}.logo span{color:#536dfe}.top button,.download{border:0;border-radius:9px;background:#536dfe;color:white;padding:10px 14px;font-weight:700;cursor:pointer;text-decoration:none}.main{max-width:1100px;margin:34px auto;padding:0 20px}.eyebrow{color:#536dfe;font-size:12px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase}h1{font-size:34px;letter-spacing:-1px;margin:8px 0}p{color:#6b768a}.stats{display:flex;gap:12px;align-items:center;margin:22px 0}.pill{background:white;border:1px solid #e5eaf3;border-radius:12px;padding:12px 16px;font-weight:700}.panel{background:#fff;border:1px solid #e5eaf3;border-radius:16px;overflow:hidden}.panel-head{padding:18px 20px;border-bottom:1px solid #e5eaf3;display:flex;justify-content:space-between;align-items:center;gap:12px}.panel-head h2{font-size:17px;margin:0}#refresh{background:#eef1ff;color:#3e53db;border:0;padding:9px 12px;border-radius:8px;cursor:pointer;font-weight:700}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:650px}th,td{text-align:left;padding:15px 20px;border-bottom:1px solid #edf0f6;font-size:13px}th{color:#718096;background:#fafbfe;font-size:11px;text-transform:uppercase;letter-spacing:.7px}td{overflow-wrap:anywhere}.empty{padding:30px;color:#718096;text-align:center}.download{display:inline-block;padding:8px 11px;font-size:12px}#message{padding:12px 0;color:#b42318;font-size:13px}
+</style>
+</head>
+<body>
+<header class="top"><div class="logo">EMAD<span>.</span> ENGLISH</div><button id="logout">Sign out</button></header>
+<main class="main"><div class="eyebrow">Teacher portal</div><h1>Homework submissions</h1><p>Review submitted homework and download the original files.</p>
+<div class="stats"><div class="pill">Submissions: <span id="count">—</span></div></div><div id="message"></div>
+<section class="panel"><div class="panel-head"><h2>Recent submissions</h2><button id="refresh">Refresh</button></div><div class="tablewrap"><table><thead><tr><th>Student</th><th>Stage</th><th>File</th><th>Submitted</th><th>Action</th></tr></thead><tbody id="rows"><tr><td colspan="5" class="empty">Loading submissions...</td></tr></tbody></table></div></section>
+</main>
+<script>
+const db=window.supabase.createClient("https://qwljyziwookssiuxahfr.supabase.co","sb_publishable_UEnx7UzAp3l2lCTXRqRmQg_ZolHqMGU");
+const rows=document.getElementById("rows"),message=document.getElementById("message");
+async function load(){
+ message.textContent=""; rows.innerHTML='<tr><td colspan="5" class="empty">Loading submissions...</td></tr>';
+ const {data:{session},error:sessionError}=await db.auth.getSession();
+ if(sessionError||!session){location.href="login.html";return;}
+ const {data,error}=await db.from("submissions").select("id,student_name,stage,submitted_at,submission_files(id,original_name,storage_path,created_at)").order("submitted_at",{ascending:false});
+ if(error){rows.innerHTML='<tr><td colspan="5" class="empty">Could not load submissions.</td></tr>';message.textContent=error.message;return;}
+ document.getElementById("count").textContent=data.length;
+ if(!data.length){rows.innerHTML='<tr><td colspan="5" class="empty">No homework has been submitted yet.</td></tr>';return;}
+ rows.innerHTML="";
+ for(const item of data){
+   const file=(item.submission_files||[])[0];
+   const tr=document.createElement("tr");
+   const values=[item.student_name,item.stage,file?.original_name||"No file",item.submitted_at?new Date(item.submitted_at).toLocaleString():"—"];
+   values.forEach(v=>{const td=document.createElement("td");td.textContent=v;tr.appendChild(td);});
+   const action=document.createElement("td");
+   if(file){const a=document.createElement("button");a.className="download";a.textContent="Download";a.addEventListener("click",async()=>{
+     a.disabled=true;a.textContent="Opening...";
+     const {data:link,error}=await db.storage.from("homework").createSignedUrl(file.storage_path,60);
+     if(error){message.textContent=error.message;a.disabled=false;a.textContent="Download";return;}
+     const win=window.open(link.signedUrl,"_blank","noopener");if(!win)location.href=link.signedUrl;
+     a.disabled=false;a.textContent="Download";
+   });action.appendChild(a);}else action.textContent="—";
+   tr.appendChild(action);rows.appendChild(tr);
+ }
+}
+document.getElementById("refresh").addEventListener("click",load);
+document.getElementById("logout").addEventListener("click",async()=>{await db.auth.signOut();location.href="login.html";});
+load();
+</script></body></html>
